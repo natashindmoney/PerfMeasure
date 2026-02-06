@@ -79,6 +79,7 @@
 /// ```
 ///
 /// - Note: Requires `PerfMeasure` from INDCommon to be imported in the file.
+#if PERFMEASURE_ENABLE_BODY_MACROS && compiler(>=5.10)
 @attached(body)
 public macro Measured(
     _ name: String? = nil,
@@ -86,6 +87,16 @@ public macro Measured(
     feature: String? = nil,
     prNumber: String? = nil
 ) = #externalMacro(module: "PerfMeasureMacros", type: "MeasuredMacro")
+#else
+@attached(peer)
+@available(*, unavailable, message: "@Measured requires Swift 5.10 or later. Use #measured / #measuredAsync or the measured(...) helper functions instead.")
+public macro Measured(
+    _ name: String? = nil,
+    category: String? = nil,
+    feature: String? = nil,
+    prNumber: String? = nil
+) = #externalMacro(module: "PerfMeasureMacros", type: "MeasuredUnavailableMacro")
+#endif
 
 
 // MARK: - Freestanding Expression Macros

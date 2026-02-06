@@ -33,7 +33,8 @@ public struct MeasuredExpressionMacro: ExpressionMacro {
     ) throws -> ExprSyntax {
 
         // Parse arguments
-        let arguments = try parseArguments(from: node.arguments)
+        let argumentList = node.argumentList
+        let arguments = try parseArguments(from: argumentList)
 
         // Get the trailing closure
         guard let trailingClosure = node.trailingClosure else {
@@ -114,7 +115,8 @@ public struct MeasuredAsyncExpressionMacro: ExpressionMacro {
     ) throws -> ExprSyntax {
 
         // Parse arguments
-        let arguments = try parseArguments(from: node.arguments)
+        let argumentList = node.argumentList
+        let arguments = try parseArguments(from: argumentList)
 
         // Get the trailing closure
         guard let trailingClosure = node.trailingClosure else {
@@ -137,7 +139,7 @@ public struct MeasuredAsyncExpressionMacro: ExpressionMacro {
         let closureBody = trailingClosure.statements
 
         return """
-        await PerfMeasure.shared.measureAsync(\(raw: argsString)) {
+        PerfMeasure.shared.measureAsync(\(raw: argsString)) {
         \(closureBody)
         }.value
         """

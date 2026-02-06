@@ -1,33 +1,11 @@
-//
-//  MeasuredMacro.swift
-//  PerfMeasureMacros
-//
-//  Created by Natash Niranjan Bangera on 04/02/26.
-//
+#if PERFMEASURE_ENABLE_BODY_MACROS && compiler(>=5.10)
 
+import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
-import Foundation
 
-/// Attached macro that wraps a function body with performance measurement
-///
-/// Usage:
-/// ```swift
-/// @Measured("loadData", category: "network")
-/// func loadData() -> Data {
-///     // function body
-/// }
-/// ```
-///
-/// Expands to:
-/// ```swift
-/// func loadData() -> Data {
-///     return PerfMeasure.shared.measure("loadData", category: "network") {
-///         // original function body
-///     }.value
-/// }
-/// ```
+/// Attached macro that wraps a function body with performance measurement.
 public struct MeasuredMacro: BodyMacro {
 
     public static func expansion(
@@ -36,36 +14,23 @@ public struct MeasuredMacro: BodyMacro {
         in context: some MacroExpansionContext
     ) throws -> [CodeBlockItemSyntax] {
 
-        // Extract the function declaration
         guard let funcDecl = declaration.as(FunctionDeclSyntax.self) else {
             throw MacroError.notAFunction
         }
 
-        // Get the original function body
         guard let body = funcDecl.body else {
             throw MacroError.noFunctionBody
         }
 
-        // Parse macro arguments
         let arguments = try parseMacroArguments(from: node)
-
-        // Get function name for default measurement name
         let functionName = funcDecl.name.text
         let measurementName = arguments.name ?? functionName
 
-        // Check if function is async
         let isAsync = funcDecl.signature.effectSpecifiers?.asyncSpecifier != nil
-
-        // Check if function throws
         let isThrows = funcDecl.signature.effectSpecifiers?.throwsClause != nil
-
-        // Check if function has a return type (non-Void)
         let hasReturnValue = funcDecl.signature.returnClause != nil
-
-        // Build the measurement call
         let measureMethod = isAsync ? "measureAsync" : "measure"
 
-        // Build arguments string
         var argsString = "\"\(measurementName)\""
         if let category = arguments.category {
             argsString += ", category: \"\(category)\""
@@ -77,10 +42,7 @@ public struct MeasuredMacro: BodyMacro {
             argsString += ", prNumber: \"\(prNumber)\""
         }
 
-        // Extract original body statements
         let originalStatements = body.statements
-
-        // Build the wrapped body
         let awaitKeyword = isAsync ? "await " : ""
         let tryKeyword = isThrows ? "try " : ""
         let valueAccess = hasReturnValue ? ".value" : ""
@@ -114,7 +76,6 @@ public struct MeasuredMacro: BodyMacro {
         for argument in argumentList {
             let label = argument.label?.text
 
-            // Extract string literal value
             guard let stringLiteral = argument.expression.as(StringLiteralExprSyntax.self),
                   let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self) else {
                 continue
@@ -123,7 +84,6 @@ public struct MeasuredMacro: BodyMacro {
 
             switch label {
             case nil:
-                // First unlabeled argument is the name
                 args.name = value
             case "category":
                 args.category = value
@@ -139,8 +99,6 @@ public struct MeasuredMacro: BodyMacro {
         return args
     }
 }
-
-// MARK: - Helper Types
 
 private struct MacroArguments {
     var name: String?
@@ -165,3 +123,31 @@ enum MacroError: Error, CustomStringConvertible {
         }
     }
 }
+
+#else
+
+import SwiftDiagnostics
+import SwiftSyntax
+import SwiftSyntaxMacros
+
+/// Emits a diagnostic on Swift toolchains that lack body macro support.
+public struct MeasuredUnavailableMacro: PeerMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingPeersOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        let message = DiagnosticMessageUnavailable()
+        let diagnostic = Diagnostic(node: Syntax(declaration), message: message)
+        context.diagnose(diagnostic)
+        return []
+    }
+}
+
+private struct DiagnosticMessageUnavailable: DiagnosticMessage {
+    let message: String = "@Measured requires Swift 5.10 or later. Use #measured / #measuredAsync macros instead."
+    let diagnosticID = MessageID(domain: "PerfMeasureMacros", id: "measuredUnavailable")
+    let severity: DiagnosticSeverity = .error
+}
+
+#endif

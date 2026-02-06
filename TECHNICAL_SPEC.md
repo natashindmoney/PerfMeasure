@@ -78,11 +78,13 @@ PerfMeasure is a comprehensive performance measurement framework for the INDmone
 ### 2.2 Package Structure
 
 ```
-INDCommon/Source/PerformanceMeasurement/
+PerfMeasure/Sources/PerfMeasure/
 ├── PerfMeasure.swift                    # Main API singleton
 ├── PerfMeasureConfiguration.swift       # Configuration management
 ├── PerfMeasureDispatcher.swift          # Destination routing
 ├── Measured.swift                       # Global helper functions
+├── Dependencies/
+│   └── PerfMeasureDependencies.swift    # Host integration protocols
 │
 ├── Models/
 │   ├── MeasurementContext.swift         # Auto + manual tags
@@ -97,7 +99,8 @@ INDCommon/Source/PerformanceMeasurement/
 │   ├── PerfMeasureDestination.swift     # Protocol + base class
 │   ├── ConsolePerfDestination.swift     # Debug console
 │   ├── JSONLPerfDestination.swift       # File storage
-│   └── NewRelicPerfDestination.swift    # NewRelic reporting
+│   ├── NewRelicPerfDestination.swift    # Tech events (via reporter)
+│   └── AnalyticsPerfDestination.swift   # AutoTracker/EventFileWriter
 │
 ├── Baseline/
 │   └── BaselineStore.swift              # Baseline storage/comparison
@@ -105,7 +108,7 @@ INDCommon/Source/PerformanceMeasurement/
 └── Export/
     └── PerfMeasureExportManager.swift   # Export bundle creation
 
-Packages/PerfMeasureMacros/              # Separate SPM package
+Packages/PerfMeasureMacros/              # Macros + client targets
 ├── Package.swift
 ├── Sources/
 │   ├── PerfMeasureMacros/               # Macro implementations
@@ -320,13 +323,14 @@ print("Frozen frames: \(result?.metrics.frozenFrames ?? 0)")
 
 ### 4.5 Swift Macros (SPM Package)
 
-**@Measured - Function wrapper:**
+**@Measured - Function wrapper (Swift 5.10+):**
 ```swift
 @Measured("fetchStocks", category: "network", feature: "stocks")
 func fetchStocks() async throws -> [Stock] {
     return try await api.getStocks()
 }
 ```
+> **Note:** `@Measured` relies on body macros, which are only available starting with Swift 5.10 plus SwiftSyntax 510. Keep the package default (flag off) on Swift 5.9 and use the `#measured` / `#measuredAsync` macros or the `measured(...)` helper functions instead. When upgrading, enable the feature by defining `PERFMEASURE_ENABLE_BODY_MACROS` for the `PerfMeasureMacros` and `PerfMeasureClient` targets.
 
 **#measured - Inline expression:**
 ```swift
@@ -392,8 +396,14 @@ extension INDFeatureFlag {
 
         @INDFeatureFlag("JSONL Export", key: "perf_measure.jsonl_enabled", fallback: true)
         public static var jsonlEnabled
+
+        @INDFeatureFlag("AutoTracker Export", key: "perf_measure.autotracker_enabled", fallback: true)
+        public static var autoTrackerEnabled
     }
 }
+
+// Bridge to the runtime via PerfMeasureDependencies
+PerfMeasureDependencies.featureFlagProvider = INDPerfMeasureFeatureFlagProvider()
 ```
 
 ### 5.2 Configuration Options
@@ -404,6 +414,7 @@ public struct PerfMeasureConfiguration {
     var consoleEnabled: Bool               // Console destination
     var newRelicEnabled: Bool              // NewRelic destination
     var jsonlEnabled: Bool                 // JSONL file destination
+    var analyticsEnabled: Bool             // Analytics/AutoTracker destination
     var consoleThreshold: TimeInterval     // Min duration for console (default: 1ms)
     var includeMemoryMetrics: Bool         // Capture memory
     var includeCPUMetrics: Bool            // Capture CPU
@@ -437,6 +448,18 @@ PerfMeasure.shared.reloadFromFeatureFlags()
 // Add custom destination
 PerfMeasure.shared.addDestination(MyCustomDestination())
 ```
+
+### 5.4 Dependency Injection (`PerfMeasureDependencies`)
+
+```swift
+PerfMeasureDependencies.featureFlagProvider = INDPerfMeasureFeatureFlagProvider()
+PerfMeasureDependencies.eventReporter = INDPerfMeasureEventReporter()
+PerfMeasureDependencies.analyticsWriter = AutoTrackerPerfMeasureWriter()
+```
+
+- **Feature flags:** supply `PerfMeasureFeatureFlagProviding` to map remote-config values to `PerfMeasureConfiguration`
+- **Event reporting:** supply `PerfMeasureEventReporting` to forward measurements to existing analytics (e.g., `EventManager`)
+- **Analytics writer:** supply `PerfMeasureAnalyticsWriting` to stream results into AutoTracker/EventFileWriter
 
 ---
 
@@ -483,11 +506,20 @@ PerfMeasure.shared.addDestination(MyCustomDestination())
 ### 6.3 NewRelic Destination
 
 - **Purpose:** Production monitoring and alerting
-- **Integration:** Uses existing `EventManager.shared.sendTechEvent()`
+- **Integration:** Uses host-provided `PerfMeasureEventReporting`
 - **Event Name:** `perf_measure`
 - **Features:**
   - Minimum reporting threshold (10ms default)
   - All context and metrics as event properties
+
+### 6.4 Analytics Destination (AutoTracker / EventFileWriter)
+
+- **Purpose:** Persist measurements via AutoTracker’s NDJSON pipeline
+- **Integration:** Host assigns `PerfMeasureDependencies.analyticsWriter`
+- **Implementation (IND app):** Writes `MeasurementResult` payloads to `EventFileWriter` so they are uploaded alongside gesture/network events
+- **Features:**
+  - Enabled via feature flag (`perf_measure.autotracker_enabled`)
+  - Reuses AutoTracker retention/rotation logic
 
 ---
 

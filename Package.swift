@@ -7,10 +7,14 @@ import CompilerPluginSupport
 let package = Package(
     name: "PerfMeasureMacros",
     platforms: [
-        .iOS(.v14),
-        .macOS(.v12)
+        .iOS(.v17),
+        .macOS(.v10_15)
     ],
     products: [
+        .library(
+            name: "PerfMeasure",
+            targets: ["PerfMeasure"]
+        ),
         // The client library that exposes the macros
         .library(
             name: "PerfMeasureClient",
@@ -21,6 +25,13 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-syntax.git", from: "509.0.0"),
     ],
     targets: [
+        // Main runtime target
+        .target(
+            name: "PerfMeasure",
+            dependencies: [],
+            path: "Sources/PerfMeasure"
+        ),
+
         // Macro implementation that performs source transformations
         .macro(
             name: "PerfMeasureMacros",

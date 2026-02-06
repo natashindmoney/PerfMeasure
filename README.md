@@ -1,10 +1,18 @@
-# PerfMeasureMacros
+# PerfMeasure
 
-Swift macros for the PerfMeasure performance measurement tool.
+PerfMeasure is the INDmoney performance measurement toolkit packaged as a Swift Package. It ships both the runtime instrumentation APIs and the Swift macros that eliminate boilerplate.
 
 ## Overview
 
-This package provides Swift macros that make it easy to add performance measurement to your code with minimal boilerplate.
+### Targets
+
+| Target | Description |
+|--------|-------------|
+| `PerfMeasure` | Runtime measurement framework (previously in `INDCommon`). |
+| `PerfMeasureMacros` | Macro implementation target. |
+| `PerfMeasureClient` | Macro client target that exposes the `@Measured` / `#measured` APIs. |
+
+The runtime and macros share the same package so the app only needs to add a single SPM dependency.
 
 ### Available Macros
 
@@ -32,6 +40,25 @@ dependencies: [
 ]
 ```
 
+### Configure Runtime Dependencies
+
+The runtime no longer depends directly on `INDCommon`. Instead, the host app provides integrations via `PerfMeasureDependencies`:
+
+```swift
+import PerfMeasure
+
+final class MyFeatureFlagProvider: PerfMeasureFeatureFlagProviding { /* ... */ }
+final class MyEventReporter: PerfMeasureEventReporting { /* ... */ }
+final class MyAnalyticsWriter: PerfMeasureAnalyticsWriting { /* ... */ }
+
+PerfMeasureDependencies.featureFlagProvider = MyFeatureFlagProvider()
+PerfMeasureDependencies.eventReporter = MyEventReporter()
+PerfMeasureDependencies.analyticsWriter = MyAnalyticsWriter()
+PerfMeasure.shared.reloadFromFeatureFlags()
+```
+
+Providing an `analyticsWriter` enables the new `AnalyticsPerfDestination`, which can forward measurements to AutoTracker/EventFileWriter.
+
 ## Usage
 
 ### Import
@@ -41,9 +68,19 @@ import INDCommon  // For PerfMeasure
 import PerfMeasureClient  // For macros
 ```
 
-### @Measured - Function Wrapper
+### @Measured - Function Wrapper (Swift 5.10+)
 
-Automatically wraps a function with performance measurement:
+Automatically wraps a function with performance measurement. `@Measured` relies on body macros and is currently gated behind the Swift build define `PERFMEASURE_ENABLE_BODY_MACROS`. Enable it once your toolchain supports Swift 5.10 + SwiftSyntax 510 by adding:
+
+```swift
+.macro(
+    name: "PerfMeasureMacros",
+    dependencies: [...],
+    swiftSettings: [.define("PERFMEASURE_ENABLE_BODY_MACROS")]
+)
+```
+
+On Swift 5.9 toolchains, keep the flag disabled (default) and use the `#measured` / `#measuredAsync` expression macros or the `measured(...)` helper functions.
 
 ```swift
 // Basic usage
@@ -139,6 +176,7 @@ The macro automatically detects:
 - Swift 5.9+
 - iOS 14.0+
 - Xcode 15.0+
+- AutoTracker/EventFileWriter integration (optional): provide a `PerfMeasureAnalyticsWriting` implementation.
 
 ## Testing
 
@@ -151,6 +189,6 @@ swift test
 
 ## Notes
 
-- **Requires INDCommon**: The expanded code uses `PerfMeasure.shared` from the INDCommon framework
-- **Import both**: Remember to import both `INDCommon` and `PerfMeasureClient`
+- **Runtime target**: Import `PerfMeasure` for measurement APIs and helper functions
+- **Macros target**: Import `PerfMeasureClient` only where macros are used
 - **CocoaPods + SPM**: This package can coexist with your CocoaPods dependencies
