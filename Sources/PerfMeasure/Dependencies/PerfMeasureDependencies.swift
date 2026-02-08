@@ -13,15 +13,15 @@ public enum PerfMeasureDependencies {
 
     /// Provides feature-flag values for configuring PerfMeasure dynamically.
     /// Set this once at app startup.
-    nonisolated(unsafe) public static var featureFlagProvider: PerfMeasureFeatureFlagProviding?
+    public static var featureFlagProvider: PerfMeasureFeatureFlagProviding?
 
     /// Sends tech events (e.g., to NewRelic) for measurements routed through the reporter destination.
     /// Set this once at app startup.
-    nonisolated(unsafe) public static var eventReporter: PerfMeasureEventReporting?
+    public static var eventReporter: PerfMeasureEventReporting?
 
     /// Writes raw measurement payloads to a custom analytics sink (e.g., AutoTracker).
     /// Set this once at app startup.
-    nonisolated(unsafe) public static var analyticsWriter: PerfMeasureAnalyticsWriting?
+    public static var analyticsWriter: PerfMeasureAnalyticsWriting?
 }
 
 /// Supplies remote-config / feature-flag state for PerfMeasure.

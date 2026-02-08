@@ -8,7 +8,7 @@
 import Foundation
 
 /// Destination that writes measurements to a JSONL file for later export and analysis
-public final class JSONLPerfDestination: BasePerfMeasureDestination, @unchecked Sendable {
+public final class JSONLPerfDestination: BasePerfMeasureDestination {
 
     public static let destinationId = "jsonl"
 

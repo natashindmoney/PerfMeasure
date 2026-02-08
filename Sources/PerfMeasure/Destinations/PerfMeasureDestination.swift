@@ -8,7 +8,7 @@
 import Foundation
 
 /// Protocol for performance measurement output destinations
-public protocol PerfMeasureDestination: Sendable {
+public protocol PerfMeasureDestination {
     /// Unique identifier for this destination
     var identifier: String { get }
 
@@ -20,7 +20,7 @@ public protocol PerfMeasureDestination: Sendable {
 }
 
 /// Base class for destinations that need thread-safe operation
-open class BasePerfMeasureDestination: PerfMeasureDestination, @unchecked Sendable {
+open class BasePerfMeasureDestination: PerfMeasureDestination {
     public let identifier: String
     public var isEnabled: Bool
 

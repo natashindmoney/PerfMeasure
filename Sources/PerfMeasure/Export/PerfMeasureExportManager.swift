@@ -11,7 +11,7 @@ import UIKit
 #endif
 
 /// Manages export of performance measurement data
-public final class PerfMeasureExportManager: @unchecked Sendable {
+public final class PerfMeasureExportManager {
 
     public static let shared = PerfMeasureExportManager()
 

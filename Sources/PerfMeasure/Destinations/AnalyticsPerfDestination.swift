@@ -8,7 +8,7 @@
 import Foundation
 
 /// Destination that forwards measurements to a host-provided analytics writer (e.g., AutoTracker).
-public final class AnalyticsPerfDestination: BasePerfMeasureDestination, @unchecked Sendable {
+public final class AnalyticsPerfDestination: BasePerfMeasureDestination {
 
     public static let destinationId = "analytics"
 

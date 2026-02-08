@@ -4,9 +4,42 @@ PerfMeasure is the INDmoney performance measurement toolkit packaged as a Swift 
 
 ## Requirements
 
-- **Swift 6.0+** (required for body macros)
+- **Swift 5.9+** minimum (for expression macros and helper functions)
+- **Swift 6.0+** required for `@Measured` body macro (SE-0415)
 - iOS 17.0+ / macOS 14.0+
-- Xcode 16.0+
+- Xcode 15.0+ (Xcode 16.0+ for `@Measured`)
+
+## Swift Version Compatibility
+
+| Feature | Swift 5.9 | Swift 6.0+ |
+|---------|-----------|------------|
+| `@Measured` body macro | ❌ Not available | ✅ Available |
+| `#measured` expression macro | ✅ Available | ✅ Available |
+| `#measuredAsync` expression macro | ✅ Available | ✅ Available |
+| `measured()` helper function | ✅ Available | ✅ Available |
+| `measuredAsync()` helper function | ✅ Available | ✅ Available |
+
+### How to Check Your Swift Version
+
+**In Terminal:**
+```bash
+swift --version
+# or
+xcrun swift --version
+```
+
+**In Xcode:**
+- Go to **Xcode → About Xcode** (shows bundled Swift version)
+- Or check **Build Settings → Swift Compiler - Language → Swift Language Version**
+
+**Programmatically (compile-time):**
+```swift
+#if compiler(>=6.0)
+// Swift 6.0+ code - can use @Measured
+#else
+// Swift 5.9 code - use #measured or measured()
+#endif
+```
 
 ## Overview
 

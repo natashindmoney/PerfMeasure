@@ -8,7 +8,7 @@
 import Foundation
 
 /// Main API for performance measurement
-public final class PerfMeasure: @unchecked Sendable {
+public final class PerfMeasure {
 
     /// Shared singleton instance
     public static let shared = PerfMeasure()
@@ -295,7 +295,7 @@ public final class PerfMeasure: @unchecked Sendable {
 // MARK: - Measurement Token
 
 /// Token for manual start/stop measurements with checkpoint support
-public final class MeasurementToken: @unchecked Sendable {
+public final class MeasurementToken {
     public let id: String
     public let name: String
     public let category: String

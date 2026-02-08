@@ -9,7 +9,7 @@ import Foundation
 import Darwin
 
 /// Collects CPU and memory metrics using mach APIs
-public final class MetricsCollector: @unchecked Sendable {
+public final class MetricsCollector {
 
     public static let shared = MetricsCollector()
 

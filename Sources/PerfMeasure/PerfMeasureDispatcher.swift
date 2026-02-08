@@ -8,7 +8,7 @@
 import Foundation
 
 /// Routes measurement results to configured destinations
-public final class PerfMeasureDispatcher: @unchecked Sendable {
+public final class PerfMeasureDispatcher {
 
     private var destinations: [PerfMeasureDestination] = []
     private let queue = DispatchQueue(

@@ -11,7 +11,7 @@ import UIKit
 import QuartzCore
 
 /// Measures UI rendering performance including frame rate and dropped frames
-public final class UIRenderingMeasurement: @unchecked Sendable {
+public final class UIRenderingMeasurement {
 
     public let name: String
     public let category: String

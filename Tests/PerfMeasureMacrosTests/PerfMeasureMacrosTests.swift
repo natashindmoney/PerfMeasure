@@ -12,7 +12,7 @@ import XCTest
 #if canImport(PerfMeasureMacros)
 import PerfMeasureMacros
 
-nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
+let testMacros: [String: Macro.Type] = [
     "Measured": MeasuredMacro.self,
     "measured": MeasuredExpressionMacro.self,
     "measuredAsync": MeasuredAsyncExpressionMacro.self,
@@ -21,8 +21,9 @@ nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
 
 final class PerfMeasureMacrosTests: XCTestCase {
 
-    // MARK: - @Measured Macro Tests
+    // MARK: - @Measured Body Macro Tests (Swift 6.0+ only)
 
+#if compiler(>=6.0)
     func testMeasuredMacroBasic() throws {
         #if canImport(PerfMeasureMacros)
         assertMacroExpansion(
@@ -166,8 +167,13 @@ final class PerfMeasureMacrosTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
         #endif
     }
+#else
+    func testMeasuredMacroRequiresSwift6() throws {
+        throw XCTSkip("@Measured body macro tests require Swift 6.0+")
+    }
+#endif
 
-    // MARK: - #measured Expression Macro Tests
+    // MARK: - #measured Expression Macro Tests (Swift 5.9+)
 
     func testMeasuredExpressionMacroBasic() throws {
         #if canImport(PerfMeasureMacros)
@@ -211,7 +217,7 @@ final class PerfMeasureMacrosTests: XCTestCase {
         #endif
     }
 
-    // MARK: - #measuredAsync Expression Macro Tests
+    // MARK: - #measuredAsync Expression Macro Tests (Swift 5.9+)
 
     func testMeasuredAsyncExpressionMacro() throws {
         #if canImport(PerfMeasureMacros)
