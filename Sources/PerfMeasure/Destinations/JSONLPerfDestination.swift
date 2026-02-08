@@ -8,7 +8,7 @@
 import Foundation
 
 /// Destination that writes measurements to a JSONL file for later export and analysis
-public final class JSONLPerfDestination: BasePerfMeasureDestination {
+public final class JSONLPerfDestination: BasePerfMeasureDestination, @unchecked Sendable {
 
     public static let destinationId = "jsonl"
 
@@ -80,7 +80,7 @@ public final class JSONLPerfDestination: BasePerfMeasureDestination {
             if let handle = try? FileHandle(forWritingTo: fileURL) {
                 defer { try? handle.close() }
                 if #available(iOS 13.0, macOS 10.15.4, *) {
-                    try? handle.seekToEnd()
+                    _ = try? handle.seekToEnd()
                 } else {
                     handle.seekToEndOfFile()
                 }

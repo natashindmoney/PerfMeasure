@@ -5,9 +5,27 @@
 //  Created by Natash Niranjan Bangera on 04/02/26.
 //
 
+// Re-export PerfMeasure so clients only need to import PerfMeasureClient
+@_exported import PerfMeasure
+
+// MARK: - Swift Version Compatibility
+//
+// | Feature                          | Swift 5.9  | Swift 6.0+ |
+// |----------------------------------|------------|------------|
+// | @Measured body macro             | ❌ N/A     | ✅ Available |
+// | #measured expression macro       | ✅ Available | ✅ Available |
+// | #measuredAsync expression macro  | ✅ Available | ✅ Available |
+// | measured() helper function       | ✅ Available | ✅ Available |
+// | measuredAsync() helper function  | ✅ Available | ✅ Available |
+//
+// For Swift 5.9 users: Use #measured/#measuredAsync macros or measured()/measuredAsync() functions.
+// The @Measured body macro requires Swift 6.0+ (SE-0415: Function Body Macros).
+
 // MARK: - Attached Macro Declaration
 
 /// Wraps a function with automatic performance measurement.
+///
+/// **Requires Swift 6.0+** (SE-0415: Function Body Macros)
 ///
 /// When applied to a function, this macro wraps the entire function body
 /// with a call to `PerfMeasure.shared.measure()` or `PerfMeasure.shared.measureAsync()`.
@@ -78,8 +96,14 @@
 /// }
 /// ```
 ///
-/// - Note: Requires `PerfMeasure` from INDCommon to be imported in the file.
-#if PERFMEASURE_ENABLE_BODY_MACROS && compiler(>=5.10)
+/// ## Swift Version Requirements
+///
+/// - **Swift 6.0+**: `@Measured` is fully functional
+/// - **Swift 5.9**: Use `#measured` / `#measuredAsync` expression macros or
+///   `measured()` / `measuredAsync()` helper functions instead
+///
+/// - Note: Requires `PerfMeasure` from PerfMeasureClient to be imported in the file.
+#if compiler(>=6.0)
 @attached(body)
 public macro Measured(
     _ name: String? = nil,
@@ -89,22 +113,22 @@ public macro Measured(
 ) = #externalMacro(module: "PerfMeasureMacros", type: "MeasuredMacro")
 #else
 @attached(peer)
-@available(*, unavailable, message: "@Measured requires Swift 5.10 or later. Use #measured / #measuredAsync or the measured(...) helper functions instead.")
+@available(*, unavailable, message: "@Measured requires Swift 6.0+. Use #measured/#measuredAsync or measured()/measuredAsync() instead.")
 public macro Measured(
     _ name: String? = nil,
     category: String? = nil,
     feature: String? = nil,
     prNumber: String? = nil
-) = #externalMacro(module: "PerfMeasureMacros", type: "MeasuredUnavailableMacro")
+) = #externalMacro(module: "PerfMeasureMacros", type: "MeasuredMacro")
 #endif
 
 
-// MARK: - Freestanding Expression Macros
+// MARK: - Freestanding Expression Macros (Swift 5.9+)
 
 /// Measures a synchronous expression inline.
 ///
 /// Use this macro when you want to measure a specific expression or block of code
-/// without wrapping an entire function.
+/// without wrapping an entire function. **Works in Swift 5.9+**.
 ///
 /// ## Usage
 ///
@@ -135,7 +159,7 @@ public macro Measured(
 /// }.value
 /// ```
 ///
-/// - Note: Requires `PerfMeasure` from INDCommon to be imported in the file.
+/// - Note: Requires `PerfMeasure` from PerfMeasureClient to be imported in the file.
 @freestanding(expression)
 public macro measured(
     _ name: String,
@@ -148,6 +172,7 @@ public macro measured(
 /// Measures an asynchronous expression inline.
 ///
 /// Use this macro when you want to measure a specific async expression or block of code.
+/// **Works in Swift 5.9+**.
 ///
 /// ## Usage
 ///
@@ -171,7 +196,7 @@ public macro measured(
 /// }.value
 /// ```
 ///
-/// - Note: Requires `PerfMeasure` from INDCommon to be imported in the file.
+/// - Note: Requires `PerfMeasure` from PerfMeasureClient to be imported in the file.
 @freestanding(expression)
 public macro measuredAsync(
     _ name: String,

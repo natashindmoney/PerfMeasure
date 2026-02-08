@@ -33,7 +33,7 @@ public struct MeasuredExpressionMacro: ExpressionMacro {
     ) throws -> ExprSyntax {
 
         // Parse arguments
-        let argumentList = node.argumentList
+        let argumentList = node.arguments
         let arguments = try parseArguments(from: argumentList)
 
         // Get the trailing closure
@@ -115,7 +115,7 @@ public struct MeasuredAsyncExpressionMacro: ExpressionMacro {
     ) throws -> ExprSyntax {
 
         // Parse arguments
-        let argumentList = node.argumentList
+        let argumentList = node.arguments
         let arguments = try parseArguments(from: argumentList)
 
         // Get the trailing closure

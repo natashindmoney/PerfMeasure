@@ -1,4 +1,14 @@
-#if PERFMEASURE_ENABLE_BODY_MACROS && compiler(>=5.10)
+//
+//  MeasuredMacro.swift
+//  PerfMeasureMacros
+//
+//  Created by Natash Niranjan Bangera on 04/02/26.
+//
+
+// Body macros (@attached(body)) require Swift 6.0+ (SE-0415)
+// For Swift 5.9, we provide a peer macro that emits a helpful diagnostic
+
+#if compiler(>=6.0)
 
 import Foundation
 import SwiftSyntax
@@ -6,6 +16,7 @@ import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
 /// Attached macro that wraps a function body with performance measurement.
+/// Available in Swift 6.0+ only.
 public struct MeasuredMacro: BodyMacro {
 
     public static func expansion(
@@ -100,6 +111,45 @@ public struct MeasuredMacro: BodyMacro {
     }
 }
 
+#else
+
+// Swift 5.9 fallback: Provide a peer macro that emits a diagnostic
+import SwiftDiagnostics
+import SwiftSyntax
+import SwiftSyntaxMacros
+
+/// Fallback macro for Swift versions below 6.0 that emits a helpful diagnostic.
+public struct MeasuredMacro: PeerMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingPeersOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        let message = MeasuredUnavailableDiagnostic()
+        let diagnostic = Diagnostic(node: Syntax(node), message: message)
+        context.diagnose(diagnostic)
+        return []
+    }
+}
+
+private struct MeasuredUnavailableDiagnostic: DiagnosticMessage {
+    let message: String = """
+        @Measured requires Swift 6.0 or later (SE-0415: Function Body Macros).
+
+        For Swift 5.9, use one of these alternatives instead:
+        • #measured("name") { ... } - expression macro
+        • #measuredAsync("name") { ... } - async expression macro
+        • measured("name") { ... } - helper function
+        • measuredAsync("name") { ... } - async helper function
+        """
+    let diagnosticID = MessageID(domain: "PerfMeasureMacros", id: "measuredUnavailable")
+    let severity: DiagnosticSeverity = .error
+}
+
+#endif
+
+// MARK: - Shared Types
+
 private struct MacroArguments {
     var name: String?
     var category: String?
@@ -123,31 +173,3 @@ enum MacroError: Error, CustomStringConvertible {
         }
     }
 }
-
-#else
-
-import SwiftDiagnostics
-import SwiftSyntax
-import SwiftSyntaxMacros
-
-/// Emits a diagnostic on Swift toolchains that lack body macro support.
-public struct MeasuredUnavailableMacro: PeerMacro {
-    public static func expansion(
-        of node: AttributeSyntax,
-        providingPeersOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
-    ) throws -> [DeclSyntax] {
-        let message = DiagnosticMessageUnavailable()
-        let diagnostic = Diagnostic(node: Syntax(declaration), message: message)
-        context.diagnose(diagnostic)
-        return []
-    }
-}
-
-private struct DiagnosticMessageUnavailable: DiagnosticMessage {
-    let message: String = "@Measured requires Swift 5.10 or later. Use #measured / #measuredAsync macros instead."
-    let diagnosticID = MessageID(domain: "PerfMeasureMacros", id: "measuredUnavailable")
-    let severity: DiagnosticSeverity = .error
-}
-
-#endif

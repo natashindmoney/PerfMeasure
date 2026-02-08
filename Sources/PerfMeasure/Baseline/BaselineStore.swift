@@ -11,7 +11,7 @@ import UIKit
 #endif
 
 /// Stores baseline performance metrics for comparison
-public final class BaselineStore {
+public final class BaselineStore: @unchecked Sendable {
 
     public static let shared = BaselineStore()
 
@@ -23,7 +23,7 @@ public final class BaselineStore {
 
     // MARK: - Types
 
-    public struct Baseline: Codable {
+    public struct Baseline: Codable, Sendable {
         public let name: String
         public let category: String
         public var sampleCount: Int

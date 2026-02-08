@@ -8,7 +8,7 @@
 import Foundation
 
 /// Destination that sends measurements to NewRelic via EventManager
-public final class NewRelicPerfDestination: BasePerfMeasureDestination {
+public final class NewRelicPerfDestination: BasePerfMeasureDestination, @unchecked Sendable {
 
     public static let destinationId = "newrelic"
 

@@ -1,31 +1,41 @@
 // swift-tools-version: 5.9
 // The swift-tools-version declares the minimum version of Swift required to build this package.
+//
+// Swift Version Compatibility:
+// - Swift 5.9+: Supports #measured/#measuredAsync expression macros and helper functions
+// - Swift 6.0+: Additionally supports @Measured body macro
+//
+// Body macros (@attached(body)) require Swift 6.0+ (SE-0415)
 
 import PackageDescription
 import CompilerPluginSupport
 
 let package = Package(
-    name: "PerfMeasureMacros",
+    name: "PerfMeasure",
     platforms: [
         .iOS(.v17),
-        .macOS(.v10_15)
+        .macOS(.v14)
     ],
     products: [
+        // Core runtime library with PerfMeasure API
         .library(
             name: "PerfMeasure",
             targets: ["PerfMeasure"]
         ),
-        // The client library that exposes the macros
+        // Client library that exposes macros and re-exports PerfMeasure
+        // Use this for the simplest integration - just `import PerfMeasureClient`
         .library(
             name: "PerfMeasureClient",
             targets: ["PerfMeasureClient"]
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-syntax.git", from: "509.0.0"),
+        // swift-syntax 509.x for Swift 5.9, 510.x for Swift 5.10, 600.x for Swift 6.0
+        // SPM will resolve to the appropriate version based on the Swift toolchain
+        .package(url: "https://github.com/apple/swift-syntax.git", "509.0.0"..<"700.0.0"),
     ],
     targets: [
-        // Main runtime target
+        // Main runtime target with all measurement functionality
         .target(
             name: "PerfMeasure",
             dependencies: [],
@@ -41,10 +51,14 @@ let package = Package(
             ]
         ),
 
-        // Client library that exposes the macros to user code
+        // Client library that exposes the macros and re-exports PerfMeasure types
+        // This is the recommended import for most users
         .target(
             name: "PerfMeasureClient",
-            dependencies: ["PerfMeasureMacros"]
+            dependencies: [
+                "PerfMeasure",
+                "PerfMeasureMacros"
+            ]
         ),
 
         // Tests for the macros

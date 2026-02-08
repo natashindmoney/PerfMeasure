@@ -8,16 +8,20 @@
 import Foundation
 
 /// Defines integration points that the host application can provide to extend PerfMeasure.
+/// These should be set once at app startup before using PerfMeasure.
 public enum PerfMeasureDependencies {
 
     /// Provides feature-flag values for configuring PerfMeasure dynamically.
-    public static var featureFlagProvider: PerfMeasureFeatureFlagProviding?
+    /// Set this once at app startup.
+    nonisolated(unsafe) public static var featureFlagProvider: PerfMeasureFeatureFlagProviding?
 
     /// Sends tech events (e.g., to NewRelic) for measurements routed through the reporter destination.
-    public static var eventReporter: PerfMeasureEventReporting?
+    /// Set this once at app startup.
+    nonisolated(unsafe) public static var eventReporter: PerfMeasureEventReporting?
 
     /// Writes raw measurement payloads to a custom analytics sink (e.g., AutoTracker).
-    public static var analyticsWriter: PerfMeasureAnalyticsWriting?
+    /// Set this once at app startup.
+    nonisolated(unsafe) public static var analyticsWriter: PerfMeasureAnalyticsWriting?
 }
 
 /// Supplies remote-config / feature-flag state for PerfMeasure.

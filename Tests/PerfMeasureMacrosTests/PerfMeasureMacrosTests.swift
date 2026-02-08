@@ -12,26 +12,17 @@ import XCTest
 #if canImport(PerfMeasureMacros)
 import PerfMeasureMacros
 
-#if PERFMEASURE_ENABLE_BODY_MACROS && compiler(>=5.10)
-let testMacros: [String: Macro.Type] = [
+nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
     "Measured": MeasuredMacro.self,
     "measured": MeasuredExpressionMacro.self,
     "measuredAsync": MeasuredAsyncExpressionMacro.self,
 ]
-#else
-let testMacros: [String: Macro.Type] = [
-    "Measured": MeasuredUnavailableMacro.self,
-    "measured": MeasuredExpressionMacro.self,
-    "measuredAsync": MeasuredAsyncExpressionMacro.self,
-]
-#endif
 #endif
 
 final class PerfMeasureMacrosTests: XCTestCase {
 
     // MARK: - @Measured Macro Tests
 
-#if PERFMEASURE_ENABLE_BODY_MACROS && compiler(>=5.10)
     func testMeasuredMacroBasic() throws {
         #if canImport(PerfMeasureMacros)
         assertMacroExpansion(
@@ -44,8 +35,9 @@ final class PerfMeasureMacrosTests: XCTestCase {
             expandedSource: """
             func loadData() -> Data {
                 return PerfMeasure.shared.measure("loadData") {
+
                     return fetchFromAPI()
-                }.value
+                } .value
             }
             """,
             macros: testMacros
@@ -67,8 +59,9 @@ final class PerfMeasureMacrosTests: XCTestCase {
             expandedSource: """
             func parseJSON() -> Model {
                 return PerfMeasure.shared.measure("parseJSON", category: "parsing") {
+
                     return decode(data)
-                }.value
+                } .value
             }
             """,
             macros: testMacros
@@ -90,8 +83,9 @@ final class PerfMeasureMacrosTests: XCTestCase {
             expandedSource: """
             func fetchStocks() -> [Stock] {
                 return PerfMeasure.shared.measure("fetchStocks", category: "network", feature: "stocks", prNumber: "PR-123") {
+
                     return api.getStocks()
-                }.value
+                } .value
             }
             """,
             macros: testMacros
@@ -113,8 +107,9 @@ final class PerfMeasureMacrosTests: XCTestCase {
             expandedSource: """
             func fetchProfile() async -> Profile {
                 return await PerfMeasure.shared.measureAsync("fetchProfile", category: "network") {
+
                     return await api.getProfile()
-                }.value
+                } .value
             }
             """,
             macros: testMacros
@@ -136,8 +131,9 @@ final class PerfMeasureMacrosTests: XCTestCase {
             expandedSource: """
             func loadData() async throws -> Data {
                 return try await PerfMeasure.shared.measureAsync("loadData") {
+
                     return try await network.fetch()
-                }.value
+                } .value
             }
             """,
             macros: testMacros
@@ -159,6 +155,7 @@ final class PerfMeasureMacrosTests: XCTestCase {
             expandedSource: """
             func processData() {
                 _ = PerfMeasure.shared.measure("processData") {
+
                     doWork()
                 }
             }
@@ -169,11 +166,6 @@ final class PerfMeasureMacrosTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
         #endif
     }
-#else
-    func testMeasuredMacroUnavailable() throws {
-        throw XCTSkip("@Measured requires Swift 5.10 or later")
-    }
-#endif
 
     // MARK: - #measured Expression Macro Tests
 

@@ -2,25 +2,33 @@
 
 PerfMeasure is the INDmoney performance measurement toolkit packaged as a Swift Package. It ships both the runtime instrumentation APIs and the Swift macros that eliminate boilerplate.
 
+## Requirements
+
+- **Swift 6.0+** (required for body macros)
+- iOS 17.0+ / macOS 14.0+
+- Xcode 16.0+
+
 ## Overview
 
 ### Targets
 
 | Target | Description |
 |--------|-------------|
-| `PerfMeasure` | Runtime measurement framework (previously in `INDCommon`). |
+| `PerfMeasure` | Runtime measurement framework with all APIs and helper functions. |
 | `PerfMeasureMacros` | Macro implementation target. |
-| `PerfMeasureClient` | Macro client target that exposes the `@Measured` / `#measured` APIs. |
+| `PerfMeasureClient` | Recommended import - exposes macros and re-exports `PerfMeasure`. |
 
-The runtime and macros share the same package so the app only needs to add a single SPM dependency.
+The runtime and macros share the same package so the app only needs a single SPM dependency.
 
-### Available Macros
+### Available APIs
 
-| Macro | Type | Description |
-|-------|------|-------------|
-| `@Measured` | Attached (body) | Wraps an entire function with performance measurement |
-| `#measured` | Freestanding (expression) | Measures a sync expression inline |
-| `#measuredAsync` | Freestanding (expression) | Measures an async expression inline |
+| API | Type | Swift Version | Description |
+|-----|------|---------------|-------------|
+| `@Measured` | Body Macro | 5.10+ | Wraps an entire function with performance measurement |
+| `#measured` | Expression Macro | 5.9+ | Measures a sync expression inline |
+| `#measuredAsync` | Expression Macro | 5.9+ | Measures an async expression inline |
+| `measured()` | Helper Function | 5.9+ | Measures a sync closure |
+| `measuredAsync()` | Helper Function | 5.9+ | Measures an async closure |
 
 ## Installation
 
@@ -64,23 +72,18 @@ Providing an `analyticsWriter` enables the new `AnalyticsPerfDestination`, which
 ### Import
 
 ```swift
-import INDCommon  // For PerfMeasure
-import PerfMeasureClient  // For macros
+// Recommended: Single import gives you everything
+import PerfMeasureClient
+
+// Alternative: Import only runtime (no macros)
+import PerfMeasure
 ```
 
-### @Measured - Function Wrapper (Swift 5.10+)
+`PerfMeasureClient` re-exports `PerfMeasure`, so you only need one import.
 
-Automatically wraps a function with performance measurement. `@Measured` relies on body macros and is currently gated behind the Swift build define `PERFMEASURE_ENABLE_BODY_MACROS`. Enable it once your toolchain supports Swift 5.10 + SwiftSyntax 510 by adding:
+### @Measured - Function Wrapper (Swift 5.10+ only)
 
-```swift
-.macro(
-    name: "PerfMeasureMacros",
-    dependencies: [...],
-    swiftSettings: [.define("PERFMEASURE_ENABLE_BODY_MACROS")]
-)
-```
-
-On Swift 5.9 toolchains, keep the flag disabled (default) and use the `#measured` / `#measuredAsync` expression macros or the `measured(...)` helper functions.
+Automatically wraps a function with performance measurement. This is automatically enabled when building with Swift 5.10+.
 
 ```swift
 // Basic usage
@@ -147,6 +150,26 @@ let data = await #measuredAsync("downloadImage", feature: "media") {
 }
 ```
 
+### Helper Functions
+
+Alternative to macros for measuring entire functions:
+
+```swift
+import PerfMeasureClient
+
+func loadUserData() -> User {
+    return measured("loadUserData", category: "data") {
+        fetchUser()
+    }
+}
+
+func fetchProfile() async throws -> Profile {
+    return try await measuredAsync("fetchProfile", category: "network") {
+        try await api.getProfile()
+    }
+}
+```
+
 ## Parameters
 
 All macros accept the same parameters:
@@ -171,24 +194,17 @@ The macro automatically detects:
 - Whether the function `throws`
 - Whether the function returns a value or `Void`
 
-## Requirements
-
-- Swift 5.9+
-- iOS 14.0+
-- Xcode 15.0+
-- AutoTracker/EventFileWriter integration (optional): provide a `PerfMeasureAnalyticsWriting` implementation.
-
 ## Testing
 
 Run the macro tests:
 
 ```bash
-cd Packages/PerfMeasureMacros
+cd /path/to/PerfMeasure
 swift test
 ```
 
 ## Notes
 
-- **Runtime target**: Import `PerfMeasure` for measurement APIs and helper functions
-- **Macros target**: Import `PerfMeasureClient` only where macros are used
+- **Recommended import**: Use `import PerfMeasureClient` - it re-exports `PerfMeasure` and provides all macros
 - **CocoaPods + SPM**: This package can coexist with your CocoaPods dependencies
+- **Body macro auto-detection**: The package automatically enables `@Measured` when building with Swift 5.10+

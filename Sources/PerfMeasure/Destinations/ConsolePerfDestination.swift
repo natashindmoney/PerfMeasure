@@ -9,7 +9,7 @@ import Foundation
 import os.log
 
 /// Destination that logs measurements to the console
-public final class ConsolePerfDestination: BasePerfMeasureDestination {
+public final class ConsolePerfDestination: BasePerfMeasureDestination, @unchecked Sendable {
 
     public static let destinationId = "console"
 

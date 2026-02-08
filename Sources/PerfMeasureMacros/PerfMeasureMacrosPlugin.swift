@@ -10,19 +10,9 @@ import SwiftSyntaxMacros
 
 @main
 struct PerfMeasureMacrosPlugin: CompilerPlugin {
-    let providingMacros: [Macro.Type] = {
-        #if PERFMEASURE_ENABLE_BODY_MACROS && compiler(>=5.10)
-        return [
-            MeasuredMacro.self,
-            MeasuredExpressionMacro.self,
-            MeasuredAsyncExpressionMacro.self,
-        ]
-        #else
-        return [
-            MeasuredUnavailableMacro.self,
-            MeasuredExpressionMacro.self,
-            MeasuredAsyncExpressionMacro.self,
-        ]
-        #endif
-    }()
+    let providingMacros: [Macro.Type] = [
+        MeasuredMacro.self,
+        MeasuredExpressionMacro.self,
+        MeasuredAsyncExpressionMacro.self,
+    ]
 }
