@@ -65,10 +65,10 @@ final class ConfigurationTests: XCTestCase {
     }
 
     func testFromFeatureFlagsWithNoProvider() {
-        // With no provider set, should return default config
+        // With no provider set, should return disabled config so the profiler
+        // performs no work until the host app explicitly configures it.
         INDProfilerDependencies.featureFlagProvider = nil
         let config = INDProfilerConfiguration.fromFeatureFlags()
-        XCTAssertTrue(config.isEnabled)
-        XCTAssertTrue(config.consoleEnabled)
+        XCTAssertFalse(config.isEnabled, "Should default to disabled when no feature flag provider is set")
     }
 }

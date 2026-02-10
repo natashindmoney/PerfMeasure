@@ -7,14 +7,16 @@
 
 import Foundation
 
-/// Destination that writes measurements to a JSONL file for later export and analysis
+/// Destination that writes measurements to a JSONL file for later export and analysis.
+///
+/// Directory creation is deferred to the first write so that importing the
+/// library has zero filesystem cost when JSONL logging is not used.
 public final class INDProfilerJSONLDestination: INDProfilerBaseDestination {
 
     public static let destinationId = "jsonl"
 
     private let fileURL: URL
     private let fileManager: FileManager
-    private let encoder: JSONEncoder
 
     /// Maximum file size before rotation (default: 10MB)
     public var maxFileSize: Int = 10 * 1024 * 1024
@@ -22,24 +24,19 @@ public final class INDProfilerJSONLDestination: INDProfilerBaseDestination {
     /// Maximum number of archived files to keep
     public var maxArchivedFiles: Int = 5
 
+    /// Whether the directory has been created yet
+    private var directoryCreated = false
+
     public init(
         isEnabled: Bool = true,
         fileManager: FileManager = .default
     ) {
         self.fileManager = fileManager
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
 
-        // Set up file URL
+        // Compute the URL but do NOT create the directory yet.
         let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
         let perfDirectory = documentsDirectory.appendingPathComponent("INDProfiler", isDirectory: true)
-
-        // Create directory if needed
-        if !fileManager.fileExists(atPath: perfDirectory.path) {
-            try? fileManager.createDirectory(at: perfDirectory, withIntermediateDirectories: true)
-        }
-
         self.fileURL = perfDirectory.appendingPathComponent("measurements.jsonl", isDirectory: false)
 
         super.init(identifier: Self.destinationId, isEnabled: isEnabled, qos: .utility)
@@ -56,6 +53,8 @@ public final class INDProfilerJSONLDestination: INDProfilerBaseDestination {
     }
 
     override public func performRecord(_ result: MeasurementResult) {
+        ensureDirectoryExists()
+
         // Check file size and rotate if needed
         rotateIfNeeded()
 
@@ -68,6 +67,17 @@ public final class INDProfilerJSONLDestination: INDProfilerBaseDestination {
 
         // Append to file
         writeToFile(data)
+    }
+
+    // MARK: - Lazy Directory Creation
+
+    private func ensureDirectoryExists() {
+        guard !directoryCreated else { return }
+        let dir = fileURL.deletingLastPathComponent()
+        if !fileManager.fileExists(atPath: dir.path) {
+            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        directoryCreated = true
     }
 
     private func writeToFile(_ data: Data) {
@@ -99,8 +109,7 @@ public final class INDProfilerJSONLDestination: INDProfilerBaseDestination {
         }
 
         // Archive current file
-        let timestamp = ISO8601DateFormatter().string(from: Date())
-            .replacingOccurrences(of: ":", with: "-")
+        let timestamp = Self._rotationFormatter.string(from: Date())
         let archiveName = "measurements_\(timestamp).jsonl"
         let archiveURL = fileURL.deletingLastPathComponent().appendingPathComponent(archiveName)
 
@@ -109,6 +118,13 @@ public final class INDProfilerJSONLDestination: INDProfilerBaseDestination {
         // Clean up old archives
         cleanupOldArchives()
     }
+
+    /// Shared formatter for rotation timestamps — avoids creating
+    /// `ISO8601DateFormatter` on every rotation.
+    private static let _rotationFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        return f
+    }()
 
     private func cleanupOldArchives() {
         let directory = fileURL.deletingLastPathComponent()

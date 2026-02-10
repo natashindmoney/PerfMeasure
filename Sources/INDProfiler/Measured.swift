@@ -22,7 +22,7 @@ import Foundation
 ///   - operation: The operation to measure
 /// - Returns: The result of the operation
 @discardableResult
-@inline(__always)
+@inlinable
 public func measured<T>(
     _ name: String,
     category: String? = nil,
@@ -58,7 +58,7 @@ public func measured<T>(
 ///   - operation: The async operation to measure
 /// - Returns: The result of the operation
 @discardableResult
-@inline(__always)
+@inlinable
 public func measuredAsync<T>(
     _ name: String,
     category: String? = nil,

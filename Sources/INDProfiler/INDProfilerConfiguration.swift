@@ -29,10 +29,10 @@ public struct INDProfilerConfiguration {
     /// Measurements faster than this won't be logged to console
     public var consoleThreshold: TimeInterval
 
-    /// Whether to include memory metrics
+    /// Whether to include memory metrics (requires a mach syscall per snapshot)
     public var includeMemoryMetrics: Bool
 
-    /// Whether to include CPU metrics
+    /// Whether to include CPU metrics (requires a mach syscall per snapshot)
     public var includeCPUMetrics: Bool
 
     /// Default category for measurements without an explicit category
@@ -64,10 +64,14 @@ public struct INDProfilerConfiguration {
 
     // MARK: - Feature Flag Integration
 
-    /// Creates configuration from feature flags
+    /// Creates configuration from feature flags.
+    ///
+    /// When no ``INDProfilerFeatureFlagProviding`` is set, returns
+    /// ``disabled`` so that the profiler performs no work until the
+    /// host application explicitly configures it.
     public static func fromFeatureFlags() -> INDProfilerConfiguration {
         guard let provider = INDProfilerDependencies.featureFlagProvider else {
-            return INDProfilerConfiguration()
+            return .disabled
         }
 
         return INDProfilerConfiguration(
@@ -105,7 +109,7 @@ public struct INDProfilerConfiguration {
         )
     }
 
-    /// Disabled configuration
+    /// Disabled configuration — all measurement calls become no-ops.
     public static var disabled: INDProfilerConfiguration {
         return INDProfilerConfiguration(isEnabled: false)
     }

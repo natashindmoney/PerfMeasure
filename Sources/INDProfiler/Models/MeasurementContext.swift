@@ -106,15 +106,11 @@ public struct MeasurementContext: Codable, Sendable {
         self.function = function
         self.line = line
         self.buildType = BuildType.current
-        self.appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
-        self.buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
-        self.deviceModel = Self.deviceModelIdentifier
-        #if canImport(UIKit)
-        self.osVersion = UIDevice.current.systemVersion
-        #else
-        self.osVersion = ProcessInfo.processInfo.operatingSystemVersionString
-        #endif
-        self.sessionId = Self.currentSessionId
+        self.appVersion = Self._appVersion
+        self.buildNumber = Self._buildNumber
+        self.deviceModel = Self._deviceModel
+        self.osVersion = Self._osVersion
+        self.sessionId = Self._sessionId
         self.timestamp = Date()
         self.isMainThread = Thread.isMainThread
         self.feature = feature
@@ -124,20 +120,51 @@ public struct MeasurementContext: Codable, Sendable {
         self.customTags = customTags
     }
 
-    // MARK: - Static Properties
+    // MARK: - Cached Static Properties
+    //
+    // These values never change during a process lifetime so we compute them
+    // once and reuse.  The previous implementation used a computed `static var`
+    // with `Mirror(reflecting:)` for the device model — that cost ~10-100 µs
+    // on every measurement call.
 
-    private static let currentSessionId: String = UUID().uuidString
+    /// Session ID (one per process)
+    private static let _sessionId: String = UUID().uuidString
 
-    private static var deviceModelIdentifier: String {
+    /// Device model — resolved once via `utsname` (no Mirror)
+    private static let _deviceModel: String = {
         var systemInfo = utsname()
         uname(&systemInfo)
-        let machineMirror = Mirror(reflecting: systemInfo.machine)
-        let identifier = machineMirror.children.reduce("") { identifier, element in
-            guard let value = element.value as? Int8, value != 0 else { return identifier }
-            return identifier + String(UnicodeScalar(UInt8(value)))
-        }
-        return identifier
-    }
+        let data = Data(bytes: &systemInfo.machine,
+                        count: Int(_SYS_NAMELEN))
+        // Find the first NUL byte to get the actual string length
+        let length = data.firstIndex(of: 0) ?? data.count
+        return String(decoding: data[..<length], as: UTF8.self)
+    }()
+
+    /// App version
+    private static let _appVersion: String =
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+
+    /// Build number
+    private static let _buildNumber: String =
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
+
+    /// OS version
+    private static let _osVersion: String = {
+        #if canImport(UIKit)
+        return UIDevice.current.systemVersion
+        #else
+        return ProcessInfo.processInfo.operatingSystemVersionString
+        #endif
+    }()
+
+    // MARK: - Shared Formatters (reused across calls)
+
+    private static let _isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
 
     // MARK: - Dictionary Conversion
 
@@ -152,7 +179,7 @@ public struct MeasurementContext: Codable, Sendable {
             "device_model": deviceModel,
             "os_version": osVersion,
             "session_id": sessionId,
-            "timestamp": ISO8601DateFormatter().string(from: timestamp),
+            "timestamp": Self._isoFormatter.string(from: timestamp),
             "is_main_thread": isMainThread
         ]
 

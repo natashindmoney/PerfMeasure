@@ -120,6 +120,14 @@ public struct MeasurementMetrics: Codable, Sendable {
         self.thermalState = thermalState
     }
 
+    // MARK: - Shared Formatter (reused across calls)
+
+    private static let _isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
     // MARK: - Dictionary Conversion
 
     public func toDictionary() -> [String: Any] {
@@ -154,8 +162,8 @@ public struct MeasurementMetrics: Codable, Sendable {
                 [
                     "name": checkpoint.name,
                     "elapsed_time_ms": checkpoint.elapsedTime * 1000,
-                    "timestamp": ISO8601DateFormatter().string(from: checkpoint.timestamp)
-                ]
+                    "timestamp": Self._isoFormatter.string(from: checkpoint.timestamp)
+                ] as [String: Any]
             }
         }
 

@@ -101,11 +101,31 @@ public final class MetricsCollector {
 
     // MARK: - Combined Snapshot
 
-    /// Captures a combined snapshot of all metrics
-    public func captureSnapshot() -> MetricsSnapshot {
+    /// Captures a combined snapshot of all metrics.
+    ///
+    /// Pass `includeMemory: false` or `includeCPU: false` to skip the
+    /// corresponding `task_info` mach syscall, saving ~0.5–1 µs each.
+    public func captureSnapshot(
+        includeMemory: Bool = true,
+        includeCPU: Bool = true
+    ) -> MetricsSnapshot {
+        let memory: MemorySnapshot
+        if includeMemory {
+            memory = captureMemorySnapshot()
+        } else {
+            memory = MemorySnapshot(residentSize: 0, timestamp: Date())
+        }
+
+        let cpu: CPUSnapshot
+        if includeCPU {
+            cpu = captureCPUSnapshot()
+        } else {
+            cpu = CPUSnapshot(cpuTime: nil, timestamp: Date())
+        }
+
         return MetricsSnapshot(
-            memory: captureMemorySnapshot(),
-            cpu: captureCPUSnapshot(),
+            memory: memory,
+            cpu: cpu,
             thermalState: currentThermalState()
         )
     }

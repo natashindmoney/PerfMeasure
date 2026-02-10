@@ -108,9 +108,10 @@ public struct MeasuredValue<T> {
     /// The value returned by the measured operation
     public let value: T
 
-    /// The measurement result (nil if measurement is disabled or compiled out)
+    /// The measurement result (nil if measurement is disabled)
     public let measurement: MeasurementResult?
 
+    @inlinable
     public init(value: T, measurement: MeasurementResult?) {
         self.value = value
         self.measurement = measurement

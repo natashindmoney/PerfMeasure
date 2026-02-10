@@ -165,34 +165,34 @@ public final class INDProfilerExportManager {
             exportDate: Date(),
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
             buildNumber: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown",
-            deviceModel: getDeviceModel(),
-            osVersion: Self.currentOSVersion
+            deviceModel: Self._deviceModel,
+            osVersion: Self._osVersion
         )
     }
 
-    private static var currentOSVersion: String {
+    // MARK: - Cached Device Info (avoids Mirror on every export)
+
+    private static let _deviceModel: String = {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let data = Data(bytes: &systemInfo.machine,
+                        count: Int(_SYS_NAMELEN))
+        let length = data.firstIndex(of: 0) ?? data.count
+        return String(decoding: data[..<length], as: UTF8.self)
+    }()
+
+    private static let _osVersion: String = {
         #if canImport(UIKit)
         return UIDevice.current.systemVersion
         #else
         return ProcessInfo.processInfo.operatingSystemVersionString
         #endif
-    }
+    }()
 
     private func formattedTimestamp() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd_HHmmss"
         return formatter.string(from: Date())
-    }
-
-    private func getDeviceModel() -> String {
-        var systemInfo = utsname()
-        uname(&systemInfo)
-        let machineMirror = Mirror(reflecting: systemInfo.machine)
-        let identifier = machineMirror.children.reduce("") { identifier, element in
-            guard let value = element.value as? Int8, value != 0 else { return identifier }
-            return identifier + String(UnicodeScalar(UInt8(value)))
-        }
-        return identifier
     }
 
     // MARK: - Types

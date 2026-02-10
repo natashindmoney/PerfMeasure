@@ -12,12 +12,20 @@ import Foundation
 /// Profiling is controlled at runtime via `INDProfilerConfiguration.isEnabled`.
 /// When disabled, `measure` / `measureAsync` run the closure directly and return
 /// `MeasuredValue(value:, measurement: nil)` — a single boolean check per call.
+///
+/// By default the profiler starts **disabled** (no feature-flag provider is set).
+/// Call ``configure(_:)`` or set a ``INDProfilerFeatureFlagProviding`` and call
+/// ``reloadFromFeatureFlags()`` to enable it.
 public final class INDProfiler {
 
     /// Shared singleton instance
     public static let shared = INDProfiler()
 
-    /// Current configuration
+    /// Current configuration.
+    ///
+    /// - Note: Accessed on every `measure()` call.  The read is a simple
+    ///   struct-field load; there is no lock.  `configure()` should be called
+    ///   from a single thread (typically main at startup) to avoid torn reads.
     public private(set) var configuration: INDProfilerConfiguration
 
     /// Dispatcher for routing to destinations
@@ -46,12 +54,14 @@ public final class INDProfiler {
             threshold: configuration.consoleThreshold
         ))
 
-        dispatcher.addDestination(INDProfilerJSONLDestination(
-            isEnabled: configuration.jsonlEnabled
-        ))
-
         dispatcher.addDestination(INDProfilerNewRelicDestination(
             isEnabled: configuration.newRelicEnabled
+        ))
+
+        // JSONL destination defers directory creation to its first write,
+        // so adding it here is cheap.
+        dispatcher.addDestination(INDProfilerJSONLDestination(
+            isEnabled: configuration.jsonlEnabled
         ))
 
         if INDProfilerDependencies.analyticsWriter != nil {
@@ -89,6 +99,7 @@ public final class INDProfiler {
     ///
     /// When `configuration.isEnabled` is `false` the closure runs directly and
     /// `measurement` on the returned value is `nil`.
+    @inlinable
     @discardableResult
     public func measure<T>(
         _ name: String,
@@ -107,6 +118,36 @@ public final class INDProfiler {
             return MeasuredValue(value: try operation(), measurement: nil)
         }
 
+        return try _measureImpl(
+            name,
+            category: category,
+            feature: feature,
+            experiment: experiment,
+            prNumber: prNumber,
+            variant: variant,
+            customTags: customTags,
+            file: file,
+            function: function,
+            line: line,
+            operation: operation
+        )
+    }
+
+    /// Full measurement implementation — only called when profiling is enabled.
+    @usableFromInline
+    internal func _measureImpl<T>(
+        _ name: String,
+        category: String?,
+        feature: String?,
+        experiment: String?,
+        prNumber: String?,
+        variant: String?,
+        customTags: [String: String]?,
+        file: String,
+        function: String,
+        line: Int,
+        operation: () throws -> T
+    ) rethrows -> MeasuredValue<T> {
         let context = MeasurementContext(
             file: file,
             function: function,
@@ -118,23 +159,36 @@ public final class INDProfiler {
             customTags: customTags
         )
 
-        let startSnapshot = metricsCollector.captureSnapshot()
+        let includeMemory = configuration.includeMemoryMetrics
+        let includeCPU = configuration.includeCPUMetrics
+
+        let startSnapshot = metricsCollector.captureSnapshot(
+            includeMemory: includeMemory,
+            includeCPU: includeCPU
+        )
         let startTime = DispatchTime.now()
 
         let value = try operation()
 
         let endTime = DispatchTime.now()
-        let endSnapshot = metricsCollector.captureSnapshot()
+        let endSnapshot = metricsCollector.captureSnapshot(
+            includeMemory: includeMemory,
+            includeCPU: includeCPU
+        )
 
         let duration = Double(endTime.uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000_000
-        let cpuUsage = metricsCollector.calculateCPUUsage(start: startSnapshot.cpu, end: endSnapshot.cpu)
+        let cpuUsage: Double? = includeCPU
+            ? metricsCollector.calculateCPUUsage(start: startSnapshot.cpu, end: endSnapshot.cpu)
+            : nil
 
         let metrics = MeasurementMetrics(
             duration: duration,
             memoryAtStart: startSnapshot.memory.residentSize,
             memoryAtEnd: endSnapshot.memory.residentSize,
             cpuUsagePercent: cpuUsage,
-            cpuTime: (endSnapshot.cpu.cpuTime ?? 0) - (startSnapshot.cpu.cpuTime ?? 0),
+            cpuTime: includeCPU
+                ? (endSnapshot.cpu.cpuTime ?? 0) - (startSnapshot.cpu.cpuTime ?? 0)
+                : nil,
             thermalState: endSnapshot.thermalState
         )
 
@@ -156,6 +210,7 @@ public final class INDProfiler {
     ///
     /// When `configuration.isEnabled` is `false` the closure runs directly and
     /// `measurement` on the returned value is `nil`.
+    @inlinable
     @discardableResult
     public func measureAsync<T>(
         _ name: String,
@@ -174,6 +229,36 @@ public final class INDProfiler {
             return MeasuredValue(value: try await operation(), measurement: nil)
         }
 
+        return try await _measureAsyncImpl(
+            name,
+            category: category,
+            feature: feature,
+            experiment: experiment,
+            prNumber: prNumber,
+            variant: variant,
+            customTags: customTags,
+            file: file,
+            function: function,
+            line: line,
+            operation: operation
+        )
+    }
+
+    /// Full async measurement implementation — only called when profiling is enabled.
+    @usableFromInline
+    internal func _measureAsyncImpl<T>(
+        _ name: String,
+        category: String?,
+        feature: String?,
+        experiment: String?,
+        prNumber: String?,
+        variant: String?,
+        customTags: [String: String]?,
+        file: String,
+        function: String,
+        line: Int,
+        operation: () async throws -> T
+    ) async rethrows -> MeasuredValue<T> {
         let context = MeasurementContext(
             file: file,
             function: function,
@@ -185,23 +270,36 @@ public final class INDProfiler {
             customTags: customTags
         )
 
-        let startSnapshot = metricsCollector.captureSnapshot()
+        let includeMemory = configuration.includeMemoryMetrics
+        let includeCPU = configuration.includeCPUMetrics
+
+        let startSnapshot = metricsCollector.captureSnapshot(
+            includeMemory: includeMemory,
+            includeCPU: includeCPU
+        )
         let startTime = DispatchTime.now()
 
         let value = try await operation()
 
         let endTime = DispatchTime.now()
-        let endSnapshot = metricsCollector.captureSnapshot()
+        let endSnapshot = metricsCollector.captureSnapshot(
+            includeMemory: includeMemory,
+            includeCPU: includeCPU
+        )
 
         let duration = Double(endTime.uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000_000
-        let cpuUsage = metricsCollector.calculateCPUUsage(start: startSnapshot.cpu, end: endSnapshot.cpu)
+        let cpuUsage: Double? = includeCPU
+            ? metricsCollector.calculateCPUUsage(start: startSnapshot.cpu, end: endSnapshot.cpu)
+            : nil
 
         let metrics = MeasurementMetrics(
             duration: duration,
             memoryAtStart: startSnapshot.memory.residentSize,
             memoryAtEnd: endSnapshot.memory.residentSize,
             cpuUsagePercent: cpuUsage,
-            cpuTime: (endSnapshot.cpu.cpuTime ?? 0) - (startSnapshot.cpu.cpuTime ?? 0),
+            cpuTime: includeCPU
+                ? (endSnapshot.cpu.cpuTime ?? 0) - (startSnapshot.cpu.cpuTime ?? 0)
+                : nil,
             thermalState: endSnapshot.thermalState
         )
 
@@ -220,6 +318,9 @@ public final class INDProfiler {
     // MARK: - Manual Start/Stop with Checkpoints
 
     /// Starts a manual measurement and returns a token for tracking.
+    ///
+    /// When profiling is disabled the returned token is a lightweight stub
+    /// whose ``MeasurementToken/stop()`` always returns `nil`.
     public func start(
         _ name: String,
         category: String? = nil,
@@ -232,6 +333,14 @@ public final class INDProfiler {
         function: String = #function,
         line: Int = #line
     ) -> MeasurementToken {
+        let resolvedCategory = category ?? configuration.defaultCategory
+
+        // Fast path — skip context creation, snapshot syscalls, UUID, and
+        // dictionary bookkeeping when profiling is off.
+        guard configuration.isEnabled else {
+            return MeasurementToken(disabledWithName: name, category: resolvedCategory)
+        }
+
         let context = MeasurementContext(
             file: file,
             function: function,
@@ -245,11 +354,13 @@ public final class INDProfiler {
 
         let token = MeasurementToken(
             name: name,
-            category: category ?? configuration.defaultCategory,
+            category: resolvedCategory,
             context: context,
             metricsCollector: metricsCollector,
             dispatcher: dispatcher,
-            isEnabled: configuration.isEnabled
+            isEnabled: true,
+            includeMemory: configuration.includeMemoryMetrics,
+            includeCPU: configuration.includeCPUMetrics
         )
 
         tokensLock.lock()
@@ -304,23 +415,31 @@ public final class INDProfiler {
 
 // MARK: - Measurement Token
 
-/// Token for manual start/stop measurements with checkpoint support
+/// Token for manual start/stop measurements with checkpoint support.
+///
+/// When created via the disabled path, the token is a lightweight stub:
+/// no UUID, no mach snapshots, no context.  ``stop()`` returns `nil`
+/// immediately.
 public final class MeasurementToken {
     public let id: String
     public let name: String
     public let category: String
 
-    private let context: MeasurementContext
-    private let metricsCollector: MetricsCollector
-    private let dispatcher: INDProfilerDispatcher
     private let isEnabled: Bool
+    private let context: MeasurementContext?
+    private let metricsCollector: MetricsCollector?
+    private let dispatcher: INDProfilerDispatcher?
+    private let includeMemory: Bool
+    private let includeCPU: Bool
 
-    private let startSnapshot: MetricsSnapshot
+    private let startSnapshot: MetricsSnapshot?
     private let startTime: DispatchTime
 
     private var checkpoints: [MeasurementMetrics.Checkpoint] = []
     private let checkpointsLock = NSLock()
     private var isStopped = false
+
+    // MARK: - Full init (enabled)
 
     init(
         name: String,
@@ -328,17 +447,40 @@ public final class MeasurementToken {
         context: MeasurementContext,
         metricsCollector: MetricsCollector,
         dispatcher: INDProfilerDispatcher,
-        isEnabled: Bool
+        isEnabled: Bool,
+        includeMemory: Bool = true,
+        includeCPU: Bool = true
     ) {
         self.id = UUID().uuidString
         self.name = name
         self.category = category
+        self.isEnabled = isEnabled
         self.context = context
         self.metricsCollector = metricsCollector
         self.dispatcher = dispatcher
-        self.isEnabled = isEnabled
-        self.startSnapshot = metricsCollector.captureSnapshot()
+        self.includeMemory = includeMemory
+        self.includeCPU = includeCPU
+        self.startSnapshot = metricsCollector.captureSnapshot(
+            includeMemory: includeMemory,
+            includeCPU: includeCPU
+        )
         self.startTime = DispatchTime.now()
+    }
+
+    // MARK: - Lightweight init (disabled) — no UUID, no syscalls
+
+    init(disabledWithName name: String, category: String) {
+        self.id = ""
+        self.name = name
+        self.category = category
+        self.isEnabled = false
+        self.context = nil
+        self.metricsCollector = nil
+        self.dispatcher = nil
+        self.includeMemory = false
+        self.includeCPU = false
+        self.startSnapshot = nil
+        self.startTime = .now()
     }
 
     /// Adds a checkpoint with the current timing
@@ -358,14 +500,23 @@ public final class MeasurementToken {
     /// Stops the measurement and returns the result
     @discardableResult
     public func stop() -> MeasurementResult? {
-        guard isEnabled, !isStopped else { return nil }
+        guard isEnabled, !isStopped,
+              let context = context,
+              let metricsCollector = metricsCollector,
+              let dispatcher = dispatcher,
+              let startSnapshot = startSnapshot else { return nil }
         isStopped = true
 
         let endTime = DispatchTime.now()
-        let endSnapshot = metricsCollector.captureSnapshot()
+        let endSnapshot = metricsCollector.captureSnapshot(
+            includeMemory: includeMemory,
+            includeCPU: includeCPU
+        )
 
         let duration = Double(endTime.uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000_000
-        let cpuUsage = metricsCollector.calculateCPUUsage(start: startSnapshot.cpu, end: endSnapshot.cpu)
+        let cpuUsage: Double? = includeCPU
+            ? metricsCollector.calculateCPUUsage(start: startSnapshot.cpu, end: endSnapshot.cpu)
+            : nil
 
         checkpointsLock.lock()
         let finalCheckpoints = checkpoints
@@ -376,7 +527,9 @@ public final class MeasurementToken {
             memoryAtStart: startSnapshot.memory.residentSize,
             memoryAtEnd: endSnapshot.memory.residentSize,
             cpuUsagePercent: cpuUsage,
-            cpuTime: (endSnapshot.cpu.cpuTime ?? 0) - (startSnapshot.cpu.cpuTime ?? 0),
+            cpuTime: includeCPU
+                ? (endSnapshot.cpu.cpuTime ?? 0) - (startSnapshot.cpu.cpuTime ?? 0)
+                : nil,
             checkpoints: finalCheckpoints,
             thermalState: endSnapshot.thermalState
         )
@@ -396,6 +549,7 @@ public final class MeasurementToken {
 
     /// Current elapsed time since start
     public var elapsedTime: TimeInterval {
+        guard isEnabled else { return 0 }
         return Double(DispatchTime.now().uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000_000
     }
 }
