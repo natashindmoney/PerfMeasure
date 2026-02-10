@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "INDProfiler",
+    name: "ios-INDProfiler",
     platforms: [
         .iOS(.v17),
         .macOS(.v14)
