@@ -26,7 +26,7 @@ public enum INDProfilerDependencies {
 
 /// Supplies remote-config / feature-flag state for INDProfiler.
 public protocol INDProfilerFeatureFlagProviding: AnyObject {
-    func isPerfMeasureEnabled() -> Bool
+    func isProfilerEnabled() -> Bool
     func isConsoleLoggingEnabled() -> Bool
     func isNewRelicReportingEnabled() -> Bool
     func isJSONLExportEnabled() -> Bool

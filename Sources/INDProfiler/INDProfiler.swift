@@ -7,7 +7,11 @@
 
 import Foundation
 
-/// Main API for performance measurement
+/// Main API for performance measurement.
+///
+/// Profiling is controlled at runtime via `INDProfilerConfiguration.isEnabled`.
+/// When disabled, `measure` / `measureAsync` run the closure directly and return
+/// `MeasuredValue(value:, measurement: nil)` — a single boolean check per call.
 public final class INDProfiler {
 
     /// Shared singleton instance
@@ -81,7 +85,10 @@ public final class INDProfiler {
 
     // MARK: - Closure-based Measurement (Sync)
 
-    /// Measures a synchronous operation
+    /// Measures a synchronous operation.
+    ///
+    /// When `configuration.isEnabled` is `false` the closure runs directly and
+    /// `measurement` on the returned value is `nil`.
     @discardableResult
     public func measure<T>(
         _ name: String,
@@ -145,7 +152,10 @@ public final class INDProfiler {
 
     // MARK: - Closure-based Measurement (Async)
 
-    /// Measures an asynchronous operation
+    /// Measures an asynchronous operation.
+    ///
+    /// When `configuration.isEnabled` is `false` the closure runs directly and
+    /// `measurement` on the returned value is `nil`.
     @discardableResult
     public func measureAsync<T>(
         _ name: String,
@@ -159,9 +169,9 @@ public final class INDProfiler {
         function: String = #function,
         line: Int = #line,
         operation: () async throws -> T
-    ) async rethrows -> MeasuredAsyncValue<T> {
+    ) async rethrows -> MeasuredValue<T> {
         guard configuration.isEnabled else {
-            return MeasuredAsyncValue(value: try await operation(), measurement: nil)
+            return MeasuredValue(value: try await operation(), measurement: nil)
         }
 
         let context = MeasurementContext(
@@ -204,12 +214,12 @@ public final class INDProfiler {
 
         dispatcher.dispatch(result)
 
-        return MeasuredAsyncValue(value: value, measurement: result)
+        return MeasuredValue(value: value, measurement: result)
     }
 
     // MARK: - Manual Start/Stop with Checkpoints
 
-    /// Starts a manual measurement and returns a token for tracking
+    /// Starts a manual measurement and returns a token for tracking.
     public func start(
         _ name: String,
         category: String? = nil,

@@ -1,243 +1,233 @@
-# PerfMeasure
+# INDProfiler
 
-PerfMeasure is the INDmoney performance measurement toolkit packaged as a Swift Package. It ships both the runtime instrumentation APIs and the Swift macros that eliminate boilerplate.
+A lightweight, zero-dependency Swift performance profiling library for iOS & macOS.
+
+Measures **wall-clock time**, **memory**, **CPU**, **thermal state**, and **UI frame rate** — then routes results to pluggable destinations (console, JSONL files, NewRelic, custom analytics).
+
+When profiling is disabled at runtime (via feature flags or configuration), every measurement call reduces to a **single boolean check** before running the closure directly.
 
 ## Requirements
 
-- **Swift 5.9+** minimum (for expression macros and helper functions)
-- **Swift 6.0+** required for `@Measured` body macro (SE-0415)
-- iOS 17.0+ / macOS 14.0+
-- Xcode 15.0+ (Xcode 16.0+ for `@Measured`)
-
-## Swift Version Compatibility
-
-| Feature | Swift 5.9 | Swift 6.0+ |
-|---------|-----------|------------|
-| `@Measured` body macro | ❌ Not available | ✅ Available |
-| `#measured` expression macro | ✅ Available | ✅ Available |
-| `#measuredAsync` expression macro | ✅ Available | ✅ Available |
-| `measured()` helper function | ✅ Available | ✅ Available |
-| `measuredAsync()` helper function | ✅ Available | ✅ Available |
-
-### How to Check Your Swift Version
-
-**In Terminal:**
-```bash
-swift --version
-# or
-xcrun swift --version
-```
-
-**In Xcode:**
-- Go to **Xcode → About Xcode** (shows bundled Swift version)
-- Or check **Build Settings → Swift Compiler - Language → Swift Language Version**
-
-**Programmatically (compile-time):**
-```swift
-#if compiler(>=6.0)
-// Swift 6.0+ code - can use @Measured
-#else
-// Swift 5.9 code - use #measured or measured()
-#endif
-```
-
-## Overview
-
-### Targets
-
-| Target | Description |
-|--------|-------------|
-| `PerfMeasure` | Runtime measurement framework with all APIs and helper functions. |
-| `PerfMeasureMacros` | Macro implementation target. |
-| `PerfMeasureClient` | Recommended import - exposes macros and re-exports `PerfMeasure`. |
-
-The runtime and macros share the same package so the app only needs a single SPM dependency.
-
-### Available APIs
-
-| API | Type | Swift Version | Description |
-|-----|------|---------------|-------------|
-| `@Measured` | Body Macro | 5.10+ | Wraps an entire function with performance measurement |
-| `#measured` | Expression Macro | 5.9+ | Measures a sync expression inline |
-| `#measuredAsync` | Expression Macro | 5.9+ | Measures an async expression inline |
-| `measured()` | Helper Function | 5.9+ | Measures a sync closure |
-| `measuredAsync()` | Helper Function | 5.9+ | Measures an async closure |
+- Swift 5.9+
+- iOS 17+ / macOS 14+
 
 ## Installation
 
-### Add the Package to Your Project
-
-Since the main app uses CocoaPods, you'll need to integrate this SPM package alongside it:
-
-1. In Xcode, go to **File → Add Package Dependencies...**
-2. Click **Add Local...** and select the `Packages/PerfMeasureMacros` directory
-3. Add `PerfMeasureClient` to your target
-
-Alternatively, add it to your `Package.swift` if you have a mixed CocoaPods/SPM setup:
+### Swift Package Manager
 
 ```swift
-dependencies: [
-    .package(path: "../Packages/PerfMeasureMacros")
-]
+.package(url: "https://github.com/natashindmoney/INDProfiler.git", branch: "main")
 ```
 
-### Configure Runtime Dependencies
+### CocoaPods (via SPM integration)
 
-The runtime no longer depends directly on `INDCommon`. Instead, the host app provides integrations via `PerfMeasureDependencies`:
-
-```swift
-import PerfMeasure
-
-final class MyFeatureFlagProvider: PerfMeasureFeatureFlagProviding { /* ... */ }
-final class MyEventReporter: PerfMeasureEventReporting { /* ... */ }
-final class MyAnalyticsWriter: PerfMeasureAnalyticsWriting { /* ... */ }
-
-PerfMeasureDependencies.featureFlagProvider = MyFeatureFlagProvider()
-PerfMeasureDependencies.eventReporter = MyEventReporter()
-PerfMeasureDependencies.analyticsWriter = MyAnalyticsWriter()
-PerfMeasure.shared.reloadFromFeatureFlags()
+```ruby
+spm_pkg 'INDProfiler', :git => 'https://github.com/natashindmoney/INDProfiler.git', :branch => 'main'
 ```
 
-Providing an `analyticsWriter` enables the new `AnalyticsPerfDestination`, which can forward measurements to AutoTracker/EventFileWriter.
+## Runtime Enable / Disable
 
-## Usage
-
-### Import
+Profiling is controlled at runtime via `INDProfilerConfiguration.isEnabled`. When disabled, `measure()` / `measureAsync()` skip all metrics collection and run the closure directly — one boolean check of overhead.
 
 ```swift
-// Recommended: Single import gives you everything
-import PerfMeasureClient
+// Disable all profiling
+INDProfiler.shared.configure(.disabled)
 
-// Alternative: Import only runtime (no macros)
-import PerfMeasure
+// Or control via feature flags
+INDProfilerDependencies.featureFlagProvider = MyFlagProvider()
+INDProfiler.shared.reloadFromFeatureFlags()
 ```
 
-`PerfMeasureClient` re-exports `PerfMeasure`, so you only need one import.
+For release builds, have `isProfilerEnabled()` return `false` in your feature flag provider. The profiler does nothing except forward the closure's return value.
 
-### @Measured - Function Wrapper (Swift 5.10+ only)
-
-Automatically wraps a function with performance measurement. This is automatically enabled when building with Swift 5.10+.
+## Quick Start
 
 ```swift
-// Basic usage
-@Measured("loadUserData")
-func loadUserData() -> User {
-    return fetchUser()
+import INDProfiler
+
+// Simple — returns the value directly
+let users = measured("parseUsers", category: "parsing") {
+    try JSONDecoder().decode([User].self, from: data)
 }
 
-// With category and feature
-@Measured("fetchStocks", category: "network", feature: "stocks")
-func fetchStocks() async throws -> [Stock] {
-    return try await api.getStocks()
-}
-
-// With PR tracking
-@Measured("processPayment", category: "payments", prNumber: "PR-456")
-func processPayment(amount: Decimal) -> PaymentResult {
-    return processor.process(amount)
-}
-```
-
-**Expansion:**
-
-```swift
-// Before:
-@Measured("loadData", category: "network")
-func loadData() -> Data {
-    return fetchFromAPI()
-}
-
-// After expansion:
-func loadData() -> Data {
-    return PerfMeasure.shared.measure("loadData", category: "network") {
-        return fetchFromAPI()
-    }.value
-}
-```
-
-### #measured - Inline Sync Expression
-
-Measure a specific synchronous expression:
-
-```swift
-let user = #measured("parseUser", category: "parsing") {
-    try JSONDecoder().decode(User.self, from: jsonData)
-}
-
-let filtered = #measured("filterStocks", feature: "stocks") {
-    stocks.filter { $0.price > 100 }
-}
-```
-
-### #measuredAsync - Inline Async Expression
-
-Measure a specific asynchronous expression:
-
-```swift
-let profile = await #measuredAsync("fetchProfile", category: "network") {
+// Async
+let profile = await measuredAsync("fetchProfile", category: "network") {
     try await api.getProfile()
 }
 
-let data = await #measuredAsync("downloadImage", feature: "media") {
-    try await imageLoader.download(url)
+// Detailed — access the measurement result
+let result = INDProfiler.shared.measure("loadData", feature: "stocks") {
+    fetchFromDisk()
 }
+print(result.measurement?.metrics.formattedDuration ?? "profiling disabled")
 ```
 
-### Helper Functions
+## API Reference
 
-Alternative to macros for measuring entire functions:
+### Global Helpers
+
+The simplest way to profile a block of code:
 
 ```swift
-import PerfMeasureClient
+// Sync
+let value = measured("name", category: "cat", feature: "feat") { work() }
 
-func loadUserData() -> User {
-    return measured("loadUserData", category: "data") {
-        fetchUser()
-    }
+// Async
+let value = await measuredAsync("name") { await asyncWork() }
+```
+
+When profiling is disabled, these execute the closure and return its value directly.
+
+### `INDProfiler.shared`
+
+For full control:
+
+```swift
+let profiler = INDProfiler.shared
+
+// Closure-based (sync & async)
+let result = profiler.measure("op", category: "network") { doWork() }
+let result = await profiler.measureAsync("op") { await doAsyncWork() }
+
+// Manual start/stop with checkpoints
+let token = profiler.start("flow", category: "onboarding")
+token.checkpoint("step_1")
+token.checkpoint("step_2")
+let result = token.stop()
+
+// UI frame-rate measurement (iOS only)
+let uiMeasurement = profiler.measureUIRendering("scrollPerf")
+uiMeasurement.start()
+// ... user scrolls ...
+let result = uiMeasurement.stop()
+```
+
+### `MeasuredValue<T>`
+
+Returned by `measure()` and `measureAsync()`:
+
+```swift
+struct MeasuredValue<T> {
+    let value: T                        // the closure's return value
+    let measurement: MeasurementResult? // nil when profiling is disabled
 }
+```
 
-func fetchProfile() async throws -> Profile {
-    return try await measuredAsync("fetchProfile", category: "network") {
-        try await api.getProfile()
+### Configuration
+
+```swift
+// From code
+INDProfiler.shared.configure(INDProfilerConfiguration(
+    isEnabled: true,
+    consoleEnabled: true,
+    newRelicEnabled: false,
+    jsonlEnabled: true,
+    defaultCategory: "general"
+))
+
+// From feature flags (set provider first)
+INDProfilerDependencies.featureFlagProvider = MyFlagProvider()
+INDProfiler.shared.reloadFromFeatureFlags()
+
+// Presets
+INDProfiler.shared.configure(.debug)    // all on, zero threshold
+INDProfiler.shared.configure(.release)  // console off, NewRelic on
+INDProfiler.shared.configure(.disabled) // everything off
+```
+
+### Destinations
+
+Results are routed to pluggable destinations:
+
+| Destination | Description |
+|-------------|-------------|
+| `INDProfilerConsoleDestination` | Logs to `os_log` with coloured duration icons |
+| `INDProfilerJSONLDestination` | Appends to a `.jsonl` file with auto-rotation |
+| `INDProfilerNewRelicDestination` | Sends to NewRelic via `INDProfilerEventReporting` |
+| `INDProfilerAnalyticsDestination` | Forwards to `INDProfilerAnalyticsWriting` |
+
+Add a custom destination:
+
+```swift
+class MyDestination: INDProfilerDestination {
+    var identifier = "my_dest"
+    var isEnabled = true
+    func record(_ result: MeasurementResult) { /* ... */ }
+}
+INDProfiler.shared.addDestination(MyDestination())
+```
+
+### Baseline Comparison
+
+```swift
+let store = BaselineStore.shared
+
+// Record
+store.record(measurementResult)
+
+// Compare
+if let comparison = store.compare(newResult) {
+    switch comparison.status {
+    case .regression:   print("⚠️ \(comparison.durationDeltaPercent)% slower")
+    case .improvement:  print("✅ \(comparison.durationDeltaPercent)% faster")
+    case .withinExpected: break
     }
 }
 ```
 
-## Parameters
+### Dependencies (Host App Integration)
 
-All macros accept the same parameters:
+Set these once at app startup:
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `name` | `String` | Yes (for expression macros) | Name of the measurement |
-| `category` | `String?` | No | Category for grouping (e.g., "network", "parsing") |
-| `feature` | `String?` | No | Feature tag (e.g., "stocks", "payments") |
-| `prNumber` | `String?` | No | PR number for tracking changes |
-
-## How It Works
-
-The macros transform your code at compile time to wrap operations with `PerfMeasure.shared.measure()` or `PerfMeasure.shared.measureAsync()` calls.
-
-### Sync Functions → `measure()`
-### Async Functions → `measureAsync()`
-### Throwing Functions → Preserves `try`
-
-The macro automatically detects:
-- Whether the function is `async`
-- Whether the function `throws`
-- Whether the function returns a value or `Void`
-
-## Testing
-
-Run the macro tests:
-
-```bash
-cd /path/to/PerfMeasure
-swift test
+```swift
+INDProfilerDependencies.featureFlagProvider = MyFlagProvider()  // INDProfilerFeatureFlagProviding
+INDProfilerDependencies.eventReporter       = MyReporter()      // INDProfilerEventReporting
+INDProfilerDependencies.analyticsWriter     = MyWriter()        // INDProfilerAnalyticsWriting
 ```
 
-## Notes
+### Export
 
-- **Recommended import**: Use `import PerfMeasureClient` - it re-exports `PerfMeasure` and provides all macros
-- **CocoaPods + SPM**: This package can coexist with your CocoaPods dependencies
-- **Body macro auto-detection**: The package automatically enables `@Measured` when building with Swift 5.10+
+```swift
+let exportManager = INDProfilerExportManager.shared
+
+// Get a ZIP archive URL
+if let url = exportManager.createShareableArchive() {
+    // share via UIActivityViewController, AirDrop, etc.
+}
+```
+
+## Nested & Chained Measurements
+
+Nested calls work correctly out of the box. Each measurement captures its own independent snapshots:
+
+```swift
+let outer = profiler.measure("outer") {
+    let a = profiler.measure("inner_a") { doWorkA() }  // dispatched first
+    let b = profiler.measure("inner_b") { doWorkB() }  // dispatched second
+    return combine(a.value, b.value)
+}
+// "outer" dispatched last; its duration ≥ inner_a + inner_b
+```
+
+Inner results dispatch before outer results (inside-out ordering). Each result has independent duration, memory, and CPU metrics.
+
+## Collected Metrics
+
+Each `MeasurementResult` contains:
+
+| Metric | Description |
+|--------|-------------|
+| `duration` | Wall-clock time (seconds) |
+| `memoryAtStart` / `memoryAtEnd` | Resident memory (bytes) via `mach_task_basic_info` |
+| `memoryDelta` | End − Start |
+| `cpuUsagePercent` | CPU usage 0–100% normalised by core count |
+| `cpuTime` | User + system CPU time consumed (seconds) |
+| `thermalState` | Device thermal state at end of measurement |
+| `framesRendered` / `droppedFrames` / `frozenFrames` / `averageFPS` | UI rendering metrics (when using `measureUIRendering`) |
+| `checkpoints` | Named intermediate timings (manual token API) |
+
+Plus automatic context: source location, build type, app version, device model, OS version, session ID, thread, and optional tags (feature, experiment, PR number, variant, custom).
+
+## License
+
+Internal — INDmoney.

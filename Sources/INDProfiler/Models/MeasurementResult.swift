@@ -101,26 +101,14 @@ public struct MeasurementResult: Codable, Sendable {
     }
 }
 
-/// Wrapper for measurement result with the operation's return value
+/// Wrapper for a measurement result paired with the operation's return value.
+///
+/// Used by both sync and async measurement APIs.
 public struct MeasuredValue<T> {
     /// The value returned by the measured operation
     public let value: T
 
-    /// The measurement result (nil if measurement is disabled)
-    public let measurement: MeasurementResult?
-
-    public init(value: T, measurement: MeasurementResult?) {
-        self.value = value
-        self.measurement = measurement
-    }
-}
-
-/// Wrapper for async measurement result with the operation's return value
-public struct MeasuredAsyncValue<T> {
-    /// The value returned by the measured operation
-    public let value: T
-
-    /// The measurement result (nil if measurement is disabled)
+    /// The measurement result (nil if measurement is disabled or compiled out)
     public let measurement: MeasurementResult?
 
     public init(value: T, measurement: MeasurementResult?) {

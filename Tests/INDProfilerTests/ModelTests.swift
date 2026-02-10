@@ -205,9 +205,9 @@ final class ModelTests: XCTestCase {
         XCTAssertNil(mv.measurement)
     }
 
-    func testMeasuredAsyncValueStoresValueAndMeasurement() {
-        let mav = MeasuredAsyncValue(value: [1, 2, 3], measurement: nil)
-        XCTAssertEqual(mav.value, [1, 2, 3])
-        XCTAssertNil(mav.measurement)
+    func testMeasuredValueWorksWithCollections() {
+        let mv = MeasuredValue(value: [1, 2, 3], measurement: nil)
+        XCTAssertEqual(mv.value, [1, 2, 3])
+        XCTAssertNil(mv.measurement)
     }
 }

@@ -71,7 +71,7 @@ public struct INDProfilerConfiguration {
         }
 
         return INDProfilerConfiguration(
-            isEnabled: provider.isPerfMeasureEnabled(),
+            isEnabled: provider.isProfilerEnabled(),
             consoleEnabled: provider.isConsoleLoggingEnabled(),
             newRelicEnabled: provider.isNewRelicReportingEnabled(),
             jsonlEnabled: provider.isJSONLExportEnabled(),

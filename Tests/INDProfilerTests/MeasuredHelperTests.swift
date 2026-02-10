@@ -47,29 +47,7 @@ final class MeasuredHelperTests: XCTestCase {
         XCTAssertEqual(result, 84)
     }
 
-    // MARK: - measuredWithResult() sync helper
-
-    func testMeasuredWithResultReturnsValueAndMeasurement() {
-        let result = measuredWithResult("result_helper") {
-            return 99
-        }
-        XCTAssertEqual(result.value, 99)
-        XCTAssertNotNil(result.measurement)
-        XCTAssertEqual(result.measurement?.name, "result_helper")
-    }
-
-    // MARK: - measuredAsyncWithResult() async helper
-
-    func testMeasuredAsyncWithResultReturnsValueAndMeasurement() async {
-        let result = await measuredAsyncWithResult("async_result_helper") {
-            return "async_value"
-        }
-        XCTAssertEqual(result.value, "async_value")
-        XCTAssertNotNil(result.measurement)
-        XCTAssertEqual(result.measurement?.name, "async_result_helper")
-    }
-
-    // MARK: - Disabled
+    // MARK: - Disabled via configuration
 
     func testMeasuredDisabledStillReturnsValue() {
         INDProfiler.shared.configure(INDProfilerConfiguration(isEnabled: false))
@@ -78,15 +56,5 @@ final class MeasuredHelperTests: XCTestCase {
             return 123
         }
         XCTAssertEqual(result, 123)
-    }
-
-    func testMeasuredWithResultDisabledReturnsNilMeasurement() {
-        INDProfiler.shared.configure(INDProfilerConfiguration(isEnabled: false))
-
-        let result = measuredWithResult("disabled_result") {
-            return 456
-        }
-        XCTAssertEqual(result.value, 456)
-        XCTAssertNil(result.measurement)
     }
 }
